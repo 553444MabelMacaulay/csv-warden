@@ -1,56 +1,60 @@
 # csv-warden
 
-> A lightweight CLI tool for validating, profiling, and sanitizing CSV files before ingestion into pipelines.
-
----
+A lightweight CLI tool for validating, profiling, and sanitizing CSV files
+before ingestion into pipelines.
 
 ## Installation
 
 ```bash
-pip install csv-warden
+pip install -e .
 ```
 
-Or install from source:
+## Commands
 
+### validate
+Check a CSV file for common issues (missing headers, empty file, etc.).
 ```bash
-git clone https://github.com/yourname/csv-warden.git && cd csv-warden && pip install .
+csv-warden validate data.csv
 ```
 
----
-
-## Usage
-
+### profile
+Display column-level statistics (fill rate, unique values, etc.).
 ```bash
-# Validate a CSV file against a schema
-csv-warden validate data.csv --schema schema.json
-
-# Profile a CSV file (summary stats, null counts, type inference)
 csv-warden profile data.csv
-
-# Sanitize a CSV file (trim whitespace, normalize encoding, drop empty rows)
-csv-warden sanitize data.csv --output clean_data.csv
 ```
 
-**Example output:**
-
-```
-✔ Columns validated: 12/12
-✔ No null violations found
-⚠ 3 rows dropped (empty)
-✔ Output written to clean_data.csv
+### sanitize
+Strip whitespace and optionally drop empty rows.
+```bash
+csv-warden sanitize data.csv clean.csv
+csv-warden sanitize data.csv clean.csv --keep-empty-rows
 ```
 
----
+### deduplicate
+Remove duplicate rows, optionally scoped to a subset of columns.
+```bash
+csv-warden deduplicate data.csv deduped.csv
+csv-warden deduplicate data.csv deduped.csv --subset id email
+```
 
-## Features
+### merge
+Concatenate multiple CSV files with compatible schemas.
+```bash
+csv-warden merge part1.csv part2.csv part3.csv --output merged.csv
+```
 
-- Schema-based column and type validation
-- Automatic profiling with null counts and data type inference
-- Sanitization with configurable rules
-- Fast and dependency-light — works great in CI/CD pipelines
+### transform
+Apply built-in transformations to individual columns.
 
----
+Available transforms: `upper`, `lower`, `strip`, `title`
 
-## License
+```bash
+csv-warden transform data.csv out.csv --col name=upper
+csv-warden transform data.csv out.csv --col name=title --col email=lower
+```
 
-This project is licensed under the [MIT License](LICENSE).
+## Running Tests
+
+```bash
+pytest
+```
