@@ -46,6 +46,17 @@ class ProfileReport:
             )
         return "\n".join(lines)
 
+    def columns_below_fill_rate(self, threshold: float) -> List[ColumnProfile]:
+        """Return columns whose fill rate is strictly below *threshold* percent.
+
+        Args:
+            threshold: Minimum acceptable fill rate (0–100).
+
+        Returns:
+            A list of :class:`ColumnProfile` objects that fall below the threshold.
+        """
+        return [col for col in self.columns.values() if col.fill_rate < threshold]
+
 
 def profile_csv(path: str, top_n: int = 5) -> ProfileReport:
     """Read *path* and return a :class:`ProfileReport`."""
