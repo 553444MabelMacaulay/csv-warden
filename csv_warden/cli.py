@@ -1,12 +1,13 @@
 """CLI entry-point for csv-warden."""
-
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
-from csv_warden.validator import validate_csv
 from csv_warden.profiler import profile_csv
+from csv_warden.sanitizer import sanitize_csv
+from csv_warden.validator import validate_csv
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,30 +18,39 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     # --- validate ---
-    val_p = sub.add_parser("validate", help="Validate a CSV file.")
-    val_p.add_argument("file", help="Path to the CSV file.")
-    val_p.add_argument(
-        "--required-columns",
-        nargs="+",
-        metavar="COL",
-        default=[],
-        help="Column names that must be present.",
-    )
-    val_p.add_argument(
-        "--max-rows",
+    val = sub.add_parser("validate", help="Validate a CSV file.")
+    val.add_argument("file", help="Path to the CSV file.")
+    val.add_argument(
+        "--max-warnings",
         type=int,
         default=None,
-        help="Warn if row count exceeds this limit.",
+        metavar="N",
+        help="Treat run as failed if warnings exceed N.",
     )
 
     # --- profile ---
-    prof_p = sub.add_parser("profile", help="Profile a CSV file.")
-    prof_p.add_argument("file", help="Path to the CSV file.")
-    prof_p.add_argument(
-        "--top-n",
-        type=int,
-        default=5,
-        help="Number of top values to show per column (default: 5).",
+    prof = sub.add_parser("profile", help="Profile a CSV file.")
+    prof.add_argument("file", help="Path to the CSV file.")
+
+    # --- sanitize ---
+    san = sub.add_parser("sanitize", help="Sanitize a CSV file.")
+    san.add_argument("file", help="Path to the CSV file.")
+    san.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        metavar="DEST",
+        help="Write sanitized output to DEST instead of overwriting source.",
+    )
+    san.add_argument(
+        "--no-strip",
+        action="store_true",
+        help="Disable whitespace stripping.",
+    )
+    san.add_argument(
+        "--keep-empty-rows",
+        action="store_true",
+        help="Do not drop fully-empty rows.",
     )
 
     return parser
@@ -51,25 +61,43 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "validate":
-        result = validate_csv(
-            args.file,
-            required_columns=args.required_columns,
-            max_rows=args.max_rows,
-        )
+        try:
+            result = validate_csv(args.file)
+        except FileNotFoundError:
+            print(f"Error: file not found: {args.file}", file=sys.stderr)
+            return 1
         print(result.summary())
-        return 0 if result.valid else 1
+        if result.errors:
+            return 1
+        if args.max_warnings is not None and len(result.warnings) > args.max_warnings:
+            return 1
+        return 0
 
     if args.command == "profile":
         try:
-            report = profile_csv(args.file, top_n=args.top_n)
-        except FileNotFoundError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
+            report = profile_csv(args.file)
+        except FileNotFoundError:
+            print(f"Error: file not found: {args.file}", file=sys.stderr)
             return 1
         print(report.summary())
         return 0
 
-    return 0  # unreachable but satisfies type checkers
+    if args.command == "sanitize":
+        try:
+            result = sanitize_csv(
+                args.file,
+                dest=args.output,
+                strip_whitespace=not args.no_strip,
+                drop_empty_rows=not args.keep_empty_rows,
+            )
+        except FileNotFoundError:
+            print(f"Error: file not found: {args.file}", file=sys.stderr)
+            return 1
+        print(result.summary())
+        return 0
+
+    return 0  # pragma: no cover
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())
