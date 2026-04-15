@@ -1,54 +1,74 @@
-"""CLI entry point for csv-warden."""
+"""CLI entry-point for csv-warden."""
 
-import sys
+from __future__ import annotations
+
 import argparse
+import sys
 
-from csv_warden import __version__
 from csv_warden.validator import validate_csv
+from csv_warden.profiler import profile_csv
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="csv-warden",
-        description="Validate, profile, and sanitize CSV files before pipeline ingestion.",
+        description="Validate, profile, and sanitize CSV files.",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-
     sub = parser.add_subparsers(dest="command", required=True)
 
-    validate_cmd = sub.add_parser("validate", help="Validate a CSV file.")
-    validate_cmd.add_argument("file", help="Path to the CSV file.")
-    validate_cmd.add_argument(
-        "--delimiter", default=",", help="Field delimiter (default: comma)."
-    )
-    validate_cmd.add_argument(
-        "--expected-columns", type=int, default=None, help="Expected number of columns."
-    )
-    validate_cmd.add_argument(
-        "--require-headers",
+    # --- validate ---
+    val_p = sub.add_parser("validate", help="Validate a CSV file.")
+    val_p.add_argument("file", help="Path to the CSV file.")
+    val_p.add_argument(
+        "--required-columns",
         nargs="+",
-        metavar="HEADER",
-        default=None,
-        help="One or more header names that must be present.",
+        metavar="COL",
+        default=[],
+        help="Column names that must be present.",
     )
+    val_p.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="Warn if row count exceeds this limit.",
+    )
+
+    # --- profile ---
+    prof_p = sub.add_parser("profile", help="Profile a CSV file.")
+    prof_p.add_argument("file", help="Path to the CSV file.")
+    prof_p.add_argument(
+        "--top-n",
+        type=int,
+        default=5,
+        help="Number of top values to show per column (default: 5).",
+    )
+
     return parser
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "validate":
         result = validate_csv(
-            filepath=args.file,
-            delimiter=args.delimiter,
-            expected_columns=args.expected_columns,
-            required_headers=args.require_headers,
+            args.file,
+            required_columns=args.required_columns,
+            max_rows=args.max_rows,
         )
         print(result.summary())
-        return 0 if result.is_valid else 1
+        return 0 if result.valid else 1
 
-    return 0
+    if args.command == "profile":
+        try:
+            report = profile_csv(args.file, top_n=args.top_n)
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        print(report.summary())
+        return 0
+
+    return 0  # unreachable but satisfies type checkers
 
 
 if __name__ == "__main__":
