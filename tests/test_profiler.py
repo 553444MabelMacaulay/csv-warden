@@ -91,3 +91,15 @@ def test_summary_output(tmp_csv):
     assert "id" in summary
     assert "val" in summary
     assert "Rows" in summary
+
+
+def test_empty_csv(tmp_csv):
+    """A CSV with headers but no data rows should produce zero row_count
+    and columns with fill_rate of 0.0 (or 100.0 — implementation-defined)
+    but must not raise an exception."""
+    path = tmp_csv(["a", "b"], [])
+    report = profile_csv(path)
+    assert report.row_count == 0
+    assert report.column_count == 2
+    assert "a" in report.columns
+    assert "b" in report.columns
