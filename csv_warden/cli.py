@@ -63,52 +63,46 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _exit_with_result(summary_text: str, has_errors: bool) -> None:
+    """Print a command result summary and exit with an appropriate code.
+
+    Exits with code 0 when there are no errors, or code 1 otherwise.
+    """
+    print(summary_text)
+    sys.exit(1 if has_errors else 0)
+
+
 def main(args: List[str] | None = None) -> None:  # noqa: UP007
+    """Parse CLI arguments and dispatch to the appropriate sub-command."""
     parser = build_parser()
     ns = parser.parse_args(args)
 
+    if ns.command is None:
+        parser.print_help()
+        sys.exit(1)
+
     if ns.command == "validate":
         result = validate_csv(ns.input)
-        print(val_summary(result))
-        sys.exit(0 if not result.errors else 1)
+        _exit_with_result(val_summary(result), bool(result.errors))
 
     elif ns.command == "profile":
         result = profile_csv(ns.input)
-        print(prof_summary(result))
-        sys.exit(0 if not result.errors else 1)
+        _exit_with_result(prof_summary(result), bool(result.errors))
 
     elif ns.command == "sanitize":
         result = sanitize_csv(ns.input, ns.output,
                               drop_empty_rows=not ns.keep_empty_rows)
-        print(san_summary(result))
-        sys.exit(0 if not result.errors else 1)
+        _exit_with_result(san_summary(result), bool(result.errors))
 
     elif ns.command == "deduplicate":
         result = deduplicate_csv(ns.input, ns.output, subset=ns.subset)
-        print(ded_summary(result))
-        sys.exit(0 if not result.errors else 1)
+        _exit_with_result(ded_summary(result), bool(result.errors))
 
     elif ns.command == "merge":
         result = merge_csv(ns.inputs, ns.output)
-        print(mer_summary(result))
-        sys.exit(0 if not result.errors else 1)
+        _exit_with_result(mer_summary(result), bool(result.errors))
 
     elif ns.command == "transform":
-        col_map: dict[str, str] = {}
-        for pair in ns.cols:
-            if "=" not in pair:
-                print(f"Invalid --col value '{pair}'. Expected COLUMN=TRANSFORM.")
-                sys.exit(1)
-            col, transform = pair.split("=", 1)
-            col_map[col.strip()] = transform.strip()
-        result = transform_csv(ns.input, ns.output, col_map)
-        print(tra_summary(result))
-        sys.exit(0 if not result.errors else 1)
-
-    else:
-        parser.print_help()
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+        cols = dict(pair.split("=", 1) for pair in ns.cols)
+        result = transform_csv(ns.input, ns.output, cols)
+        _exit_with_result(tra_summary(result), bool(result.errors))
