@@ -1,17 +1,18 @@
 """CLI entry-point for csv-warden."""
-
 from __future__ import annotations
 
-import sys
 import argparse
-from typing import List
+import sys
 
 from csv_warden.validator import validate_csv, summary as val_summary
 from csv_warden.profiler import profile_csv, summary as prof_summary
 from csv_warden.sanitizer import sanitize_csv, summary as san_summary
-from csv_warden.deduplicator import deduplicate_csv, summary as ded_summary
-from csv_warden.merger import merge_csv, summary as mer_summary
-from csv_warden.transformer import transform_csv, summary as tra_summary
+from csv_warden.deduplicator import deduplicate_csv, summary as dedup_summary
+from csv_warden.merger import merge_csv, summary as merge_summary
+from csv_warden.transformer import transform_csv, summary as trans_summary
+from csv_warden.filter import filter_csv, summary as filt_summary
+from csv_warden.sorter import sort_csv, summary as sort_summary
+from csv_warden.aggregator import aggregate_csv, summary as agg_summary
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,86 +24,97 @@ def build_parser() -> argparse.ArgumentParser:
 
     # validate
     p_val = sub.add_parser("validate", help="Validate a CSV file.")
-    p_val.add_argument("input", help="Path to CSV file.")
+    p_val.add_argument("file")
+    p_val.add_argument("--max-rows", type=int, default=None)
 
     # profile
-    p_pro = sub.add_parser("profile", help="Profile a CSV file.")
-    p_pro.add_argument("input", help="Path to CSV file.")
+    p_prof = sub.add_parser("profile", help="Profile a CSV file.")
+    p_prof.add_argument("file")
 
     # sanitize
     p_san = sub.add_parser("sanitize", help="Sanitize a CSV file.")
-    p_san.add_argument("input")
-    p_san.add_argument("output")
-    p_san.add_argument("--keep-empty-rows", action="store_true",
-                       default=False)
+    p_san.add_argument("file")
+    p_san.add_argument("--output", default=None)
+    p_san.add_argument("--keep-empty-rows", action="store_true")
 
     # deduplicate
-    p_ded = sub.add_parser("deduplicate", help="Remove duplicate rows.")
-    p_ded.add_argument("input")
-    p_ded.add_argument("output")
-    p_ded.add_argument("--subset", nargs="+", default=None)
+    p_dedup = sub.add_parser("deduplicate", help="Remove duplicate rows.")
+    p_dedup.add_argument("file")
+    p_dedup.add_argument("--output", default=None)
+    p_dedup.add_argument("--subset", nargs="+", default=None)
 
     # merge
-    p_mer = sub.add_parser("merge", help="Merge multiple CSV files.")
-    p_mer.add_argument("inputs", nargs="+")
-    p_mer.add_argument("--output", required=True)
+    p_merge = sub.add_parser("merge", help="Merge multiple CSV files.")
+    p_merge.add_argument("files", nargs="+")
+    p_merge.add_argument("--output", required=True)
 
     # transform
-    p_tra = sub.add_parser("transform", help="Transform columns in a CSV.")
-    p_tra.add_argument("input")
-    p_tra.add_argument("output")
-    p_tra.add_argument(
-        "--col",
-        dest="cols",
-        action="append",
-        default=[],
-        metavar="COLUMN=TRANSFORM",
-        help="Column transform pair, e.g. name=upper. Repeatable.",
-    )
+    p_trans = sub.add_parser("transform", help="Transform CSV column values.")
+    p_trans.add_argument("file")
+    p_trans.add_argument("--output", default=None)
+    p_trans.add_argument("--transform", required=True)
+    p_trans.add_argument("--columns", nargs="+", default=None)
+
+    # filter
+    p_filt = sub.add_parser("filter", help="Filter CSV rows.")
+    p_filt.add_argument("file")
+    p_filt.add_argument("--column", required=True)
+    p_filt.add_argument("--value", required=True)
+    p_filt.add_argument("--output", default=None)
+    p_filt.add_argument("--exclude", action="store_true")
+
+    # sort
+    p_sort = sub.add_parser("sort", help="Sort CSV rows.")
+    p_sort.add_argument("file")
+    p_sort.add_argument("--column", required=True)
+    p_sort.add_argument("--output", default=None)
+    p_sort.add_argument("--descending", action="store_true")
+
+    # aggregate
+    p_agg = sub.add_parser("aggregate", help="Aggregate a numeric CSV column.")
+    p_agg.add_argument("file")
+    p_agg.add_argument("column", help="Column name to aggregate.")
+    p_agg.add_argument("func", help="Aggregation function: sum, mean, min, max, count.")
 
     return parser
 
 
-def _exit_with_result(summary_text: str, has_errors: bool) -> None:
-    """Print a command result summary and exit with an appropriate code.
-
-    Exits with code 0 when there are no errors, or code 1 otherwise.
-    """
-    print(summary_text)
-    sys.exit(1 if has_errors else 0)
+def _exit_with_result(errors: list, output: str) -> None:
+    print(output)
+    sys.exit(1 if errors else 0)
 
 
-def main(args: List[str] | None = None) -> None:  # noqa: UP007
-    """Parse CLI arguments and dispatch to the appropriate sub-command."""
+def main(args=None) -> None:
     parser = build_parser()
     ns = parser.parse_args(args)
 
-    if ns.command is None:
-        parser.print_help()
-        sys.exit(1)
-
     if ns.command == "validate":
-        result = validate_csv(ns.input)
-        _exit_with_result(val_summary(result), bool(result.errors))
-
+        r = validate_csv(ns.file, max_rows=ns.max_rows)
+        _exit_with_result(r.errors, val_summary(r))
     elif ns.command == "profile":
-        result = profile_csv(ns.input)
-        _exit_with_result(prof_summary(result), bool(result.errors))
-
+        r = profile_csv(ns.file)
+        _exit_with_result(r.errors, prof_summary(r))
     elif ns.command == "sanitize":
-        result = sanitize_csv(ns.input, ns.output,
-                              drop_empty_rows=not ns.keep_empty_rows)
-        _exit_with_result(san_summary(result), bool(result.errors))
-
+        r = sanitize_csv(ns.file, output_path=ns.output, drop_empty_rows=not ns.keep_empty_rows)
+        _exit_with_result(r.errors, san_summary(r))
     elif ns.command == "deduplicate":
-        result = deduplicate_csv(ns.input, ns.output, subset=ns.subset)
-        _exit_with_result(ded_summary(result), bool(result.errors))
-
+        r = deduplicate_csv(ns.file, output_path=ns.output, subset=ns.subset)
+        _exit_with_result(r.errors, dedup_summary(r))
     elif ns.command == "merge":
-        result = merge_csv(ns.inputs, ns.output)
-        _exit_with_result(mer_summary(result), bool(result.errors))
-
+        r = merge_csv(ns.files, output_path=ns.output)
+        _exit_with_result(r.errors, merge_summary(r))
     elif ns.command == "transform":
-        cols = dict(pair.split("=", 1) for pair in ns.cols)
-        result = transform_csv(ns.input, ns.output, cols)
-        _exit_with_result(tra_summary(result), bool(result.errors))
+        r = transform_csv(ns.file, output_path=ns.output, transform=ns.transform, columns=ns.columns)
+        _exit_with_result(r.errors, trans_summary(r))
+    elif ns.command == "filter":
+        r = filter_csv(ns.file, column=ns.column, value=ns.value, output_path=ns.output, exclude=ns.exclude)
+        _exit_with_result(r.errors, filt_summary(r))
+    elif ns.command == "sort":
+        r = sort_csv(ns.file, column=ns.column, output_path=ns.output, descending=ns.descending)
+        _exit_with_result(r.errors, sort_summary(r))
+    elif ns.command == "aggregate":
+        r = aggregate_csv(ns.file, ns.column, ns.func)
+        _exit_with_result(r.errors, agg_summary(r))
+    else:
+        parser.print_help()
+        sys.exit(0)

@@ -1,7 +1,6 @@
 # csv-warden
 
-A lightweight CLI tool for validating, profiling, and sanitizing CSV files
-before ingestion into pipelines.
+A lightweight CLI tool for validating, profiling, and sanitizing CSV files before ingestion into pipelines.
 
 ## Installation
 
@@ -12,49 +11,69 @@ pip install -e .
 ## Commands
 
 ### validate
-Check a CSV file for common issues (missing headers, empty file, etc.).
 ```bash
-csv-warden validate data.csv
+csv-warden validate data.csv [--max-rows N]
 ```
 
 ### profile
-Display column-level statistics (fill rate, unique values, etc.).
 ```bash
 csv-warden profile data.csv
 ```
 
 ### sanitize
-Strip whitespace and optionally drop empty rows.
 ```bash
-csv-warden sanitize data.csv clean.csv
-csv-warden sanitize data.csv clean.csv --keep-empty-rows
+csv-warden sanitize data.csv [--output clean.csv] [--keep-empty-rows]
 ```
 
 ### deduplicate
-Remove duplicate rows, optionally scoped to a subset of columns.
 ```bash
-csv-warden deduplicate data.csv deduped.csv
-csv-warden deduplicate data.csv deduped.csv --subset id email
+csv-warden deduplicate data.csv [--output deduped.csv] [--subset col1 col2]
 ```
 
 ### merge
-Concatenate multiple CSV files with compatible schemas.
 ```bash
-csv-warden merge part1.csv part2.csv part3.csv --output merged.csv
+csv-warden merge file1.csv file2.csv --output merged.csv
 ```
 
 ### transform
-Apply built-in transformations to individual columns.
-
-Available transforms: `upper`, `lower`, `strip`, `title`
-
 ```bash
-csv-warden transform data.csv out.csv --col name=upper
-csv-warden transform data.csv out.csv --col name=title --col email=lower
+csv-warden transform data.csv --transform upper [--columns name city] [--output out.csv]
 ```
 
-## Running Tests
+Supported transforms: `upper`, `lower`, `strip`, `title`.
+
+### filter
+```bash
+csv-warden filter data.csv --column status --value active [--output out.csv] [--exclude]
+```
+
+### sort
+```bash
+csv-warden sort data.csv --column score [--output out.csv] [--descending]
+```
+
+### aggregate
+```bash
+csv-warden aggregate data.csv <column> <func>
+```
+
+Supported functions: `sum`, `mean`, `min`, `max`, `count`.
+
+**Example**
+```bash
+csv-warden aggregate sales.csv revenue sum
+# Result: 142300.0
+```
+
+Non-numeric and empty cells are skipped with a warning.
+
+## Development
 
 ```bash
+pip install -e .[dev]
 pytest
 ```
+
+## License
+
+MIT
