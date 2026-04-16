@@ -16,6 +16,11 @@ class FilterResult:
     dropped_rows: int = 0
     errors: list[str] = field(default_factory=list)
 
+    @property
+    def success(self) -> bool:
+        """Return True if the filter completed without errors."""
+        return len(self.errors) == 0
+
 
 def summary(result: FilterResult) -> str:
     lines = [
