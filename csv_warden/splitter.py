@@ -92,19 +92,21 @@ def split_csv(
         if chunk_size < 1:
             result.errors.append("chunk_size must be >= 1.")
             return result
-        for idx, start in enumerate(range(0, max(len(rows), 1), chunk_size)):
-            chunk = rows[start : start + chunk_size]
-            out_path = os.path.join(output_dir, f"chunk_{idx + 1:04d}.csv")
-            _write_rows(out_path, headers, chunk)
+        chunk_index = 0
+        for i in range(0, len(rows), chunk_size):
+            chunk_rows = rows[i : i + chunk_size]
+            out_path = os.path.join(output_dir, f"chunk_{chunk_index:04d}.csv")
+            _write_rows(out_path, headers, chunk_rows)
             result.output_files.append(out_path)
-            result.rows_written += len(chunk)
-        result.chunks = len(result.output_files)
+            result.rows_written += len(chunk_rows)
+            chunk_index += 1
+        result.chunks = chunk_index
 
     return result
 
 
-def _write_rows(path: str, headers: List[str], rows: List[dict]) -> None:
-    with open(path, "w", newline="", encoding="utf-8") as fh:
+def _write_rows(out_path: str, headers: List[str], rows: List[dict"Write *rows* to *out_path* as a CSV file with the given *headers*."""
+    with open(out_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=headers)
         writer.writeheader()
         writer.writerows(rows)
