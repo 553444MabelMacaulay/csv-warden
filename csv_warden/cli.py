@@ -1,120 +1,172 @@
 """CLI entry-point for csv-warden."""
+
 from __future__ import annotations
 
-import argparse
 import sys
+import click
 
-from csv_warden.validator import validate_csv, summary as val_summary
-from csv_warden.profiler import profile_csv, summary as prof_summary
-from csv_warden.sanitizer import sanitize_csv, summary as san_summary
-from csv_warden.deduplicator import deduplicate_csv, summary as dedup_summary
-from csv_warden.merger import merge_csv, summary as merge_summary
-from csv_warden.transformer import transform_csv, summary as trans_summary
-from csv_warden.filter import filter_csv, summary as filt_summary
-from csv_warden.sorter import sort_csv, summary as sort_summary
-from csv_warden.aggregator import aggregate_csv, summary as agg_summary
+from csv_warden import validator, profiler, sanitizer, deduplicator, merger
+from csv_warden import transformer, filter as csv_filter, sorter, aggregator, renamer
+from csv_warden import splitter
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="csv-warden",
-        description="Validate, profile, and sanitize CSV files.",
-    )
-    sub = parser.add_subparsers(dest="command")
-
-    # validate
-    p_val = sub.add_parser("validate", help="Validate a CSV file.")
-    p_val.add_argument("file")
-    p_val.add_argument("--max-rows", type=int, default=None)
-
-    # profile
-    p_prof = sub.add_parser("profile", help="Profile a CSV file.")
-    p_prof.add_argument("file")
-
-    # sanitize
-    p_san = sub.add_parser("sanitize", help="Sanitize a CSV file.")
-    p_san.add_argument("file")
-    p_san.add_argument("--output", default=None)
-    p_san.add_argument("--keep-empty-rows", action="store_true")
-
-    # deduplicate
-    p_dedup = sub.add_parser("deduplicate", help="Remove duplicate rows.")
-    p_dedup.add_argument("file")
-    p_dedup.add_argument("--output", default=None)
-    p_dedup.add_argument("--subset", nargs="+", default=None)
-
-    # merge
-    p_merge = sub.add_parser("merge", help="Merge multiple CSV files.")
-    p_merge.add_argument("files", nargs="+")
-    p_merge.add_argument("--output", required=True)
-
-    # transform
-    p_trans = sub.add_parser("transform", help="Transform CSV column values.")
-    p_trans.add_argument("file")
-    p_trans.add_argument("--output", default=None)
-    p_trans.add_argument("--transform", required=True)
-    p_trans.add_argument("--columns", nargs="+", default=None)
-
-    # filter
-    p_filt = sub.add_parser("filter", help="Filter CSV rows.")
-    p_filt.add_argument("file")
-    p_filt.add_argument("--column", required=True)
-    p_filt.add_argument("--value", required=True)
-    p_filt.add_argument("--output", default=None)
-    p_filt.add_argument("--exclude", action="store_true")
-
-    # sort
-    p_sort = sub.add_parser("sort", help="Sort CSV rows.")
-    p_sort.add_argument("file")
-    p_sort.add_argument("--column", required=True)
-    p_sort.add_argument("--output", default=None)
-    p_sort.add_argument("--descending", action="store_true")
-
-    # aggregate
-    p_agg = sub.add_parser("aggregate", help="Aggregate a numeric CSV column.")
-    p_agg.add_argument("file")
-    p_agg.add_argument("column", help="Column name to aggregate.")
-    p_agg.add_argument("func", help="Aggregation function: sum, mean, min, max, count.")
-
-    return parser
+@click.group()
+def main() -> None:
+    """csv-warden: validate, profile, and sanitize CSV files."""
 
 
-def _exit_with_result(errors: list, output: str) -> None:
-    print(output)
-    sys.exit(1 if errors else 0)
+# ---------------------------------------------------------------------------
+# validate
+# ---------------------------------------------------------------------------
+@main.command("validate")
+@click.argument("input_file")
+def cmd_validate(input_file: str) -> None:
+    result = validator.validate_csv(input_file)
+    click.echo(validator.summary(result))
+    sys.exit(0 if not result.errors else 1)
 
 
-def main(args=None) -> None:
-    parser = build_parser()
-    ns = parser.parse_args(args)
+# ---------------------------------------------------------------------------
+# profile
+# ---------------------------------------------------------------------------
+@main.command("profile")
+@click.argument("input_file")
+@click.option("--min-fill-rate", default=0.0, type=float)
+def cmd_profile(input_file: str, min_fill_rate: float) -> None:
+    result = profiler.profile_csv(input_file)
+    if result is None:
+        click.echo(f"Error: could not read {input_file}")
+        sys.exit(1)
+    click.echo(profiler.summary(result))
+    low = profiler.columns_below_fill_rate(result, min_fill_rate)
+    if low:
+        click.echo(f"Columns below fill rate {min_fill_rate}: {low}")
+        sys.exit(1)
+    sys.exit(0)
 
-    if ns.command == "validate":
-        r = validate_csv(ns.file, max_rows=ns.max_rows)
-        _exit_with_result(r.errors, val_summary(r))
-    elif ns.command == "profile":
-        r = profile_csv(ns.file)
-        _exit_with_result(r.errors, prof_summary(r))
-    elif ns.command == "sanitize":
-        r = sanitize_csv(ns.file, output_path=ns.output, drop_empty_rows=not ns.keep_empty_rows)
-        _exit_with_result(r.errors, san_summary(r))
-    elif ns.command == "deduplicate":
-        r = deduplicate_csv(ns.file, output_path=ns.output, subset=ns.subset)
-        _exit_with_result(r.errors, dedup_summary(r))
-    elif ns.command == "merge":
-        r = merge_csv(ns.files, output_path=ns.output)
-        _exit_with_result(r.errors, merge_summary(r))
-    elif ns.command == "transform":
-        r = transform_csv(ns.file, output_path=ns.output, transform=ns.transform, columns=ns.columns)
-        _exit_with_result(r.errors, trans_summary(r))
-    elif ns.command == "filter":
-        r = filter_csv(ns.file, column=ns.column, value=ns.value, output_path=ns.output, exclude=ns.exclude)
-        _exit_with_result(r.errors, filt_summary(r))
-    elif ns.command == "sort":
-        r = sort_csv(ns.file, column=ns.column, output_path=ns.output, descending=ns.descending)
-        _exit_with_result(r.errors, sort_summary(r))
-    elif ns.command == "aggregate":
-        r = aggregate_csv(ns.file, ns.column, ns.func)
-        _exit_with_result(r.errors, agg_summary(r))
-    else:
-        parser.print_help()
-        sys.exit(0)
+
+# ---------------------------------------------------------------------------
+# sanitize
+# ---------------------------------------------------------------------------
+@main.command("sanitize")
+@click.argument("input_file")
+@click.argument("output_file")
+@click.option("--drop-empty-rows", is_flag=True, default=False)
+def cmd_sanitize(input_file: str, output_file: str, drop_empty_rows: bool) -> None:
+    result = sanitizer.sanitize_csv(input_file, output_file, drop_empty_rows=drop_empty_rows)
+    click.echo(sanitizer.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# deduplicate
+# ---------------------------------------------------------------------------
+@main.command("deduplicate")
+@click.argument("input_file")
+@click.argument("output_file")
+@click.option("--subset", default=None, help="Comma-separated column names")
+def cmd_deduplicate(input_file: str, output_file: str, subset: str | None) -> None:
+    cols = [c.strip() for c in subset.split(",")] if subset else None
+    result = deduplicator.deduplicate_csv(input_file, output_file, subset=cols)
+    click.echo(deduplicator.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# merge
+# ---------------------------------------------------------------------------
+@main.command("merge")
+@click.argument("input_files", nargs=-1, required=True)
+@click.option("--output", required=True)
+def cmd_merge(input_files: tuple[str, ...], output: str) -> None:
+    result = merger.merge_csv(list(input_files), output)
+    click.echo(merger.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# transform
+# ---------------------------------------------------------------------------
+@main.command("transform")
+@click.argument("input_file")
+@click.argument("output_file")
+@click.option("--transform", "transform_name", required=True)
+@click.option("--columns", default=None)
+def cmd_transform(input_file: str, output_file: str, transform_name: str, columns: str | None) -> None:
+    cols = [c.strip() for c in columns.split(",")] if columns else None
+    result = transformer.transform_csv(input_file, output_file, transform_name, columns=cols)
+    click.echo(transformer.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# filter
+# ---------------------------------------------------------------------------
+@main.command("filter")
+@click.argument("input_file")
+@click.argument("output_file")
+@click.option("--column", required=True)
+@click.option("--value", required=True)
+@click.option("--exclude", is_flag=True, default=False)
+def cmd_filter(input_file: str, output_file: str, column: str, value: str, exclude: bool) -> None:
+    result = csv_filter.filter_csv(input_file, output_file, column=column, value=value, exclude=exclude)
+    click.echo(csv_filter.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# sort
+# ---------------------------------------------------------------------------
+@main.command("sort")
+@click.argument("input_file")
+@click.argument("output_file")
+@click.option("--column", required=True)
+@click.option("--descending", is_flag=True, default=False)
+def cmd_sort(input_file: str, output_file: str, column: str, descending: bool) -> None:
+    result = sorter.sort_csv(input_file, output_file, column=column, descending=descending)
+    click.echo(sorter.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# aggregate
+# ---------------------------------------------------------------------------
+@main.command("aggregate")
+@click.argument("input_file")
+@click.option("--column", required=True)
+@click.option("--operation", required=True)
+def cmd_aggregate(input_file: str, column: str, operation: str) -> None:
+    result = aggregator.aggregate_csv(input_file, column=column, operation=operation)
+    click.echo(aggregator.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# rename
+# ---------------------------------------------------------------------------
+@main.command("rename")
+@click.argument("input_file")
+@click.argument("output_file")
+@click.option("--mapping", required=True, help="old:new,old2:new2")
+def cmd_rename(input_file: str, output_file: str, mapping: str) -> None:
+    rename_map = dict(pair.split(":", 1) for pair in mapping.split(","))
+    result = renamer.rename_csv(input_file, output_file, rename_map)
+    click.echo(renamer.summary(result))
+    sys.exit(0 if not result.errors else 1)
+
+
+# ---------------------------------------------------------------------------
+# split
+# ---------------------------------------------------------------------------
+@main.command("split")
+@click.argument("input_file")
+@click.argument("output_dir")
+@click.option("--column", default=None, help="Split by unique values in this column.")
+@click.option("--chunk-size", default=None, type=int, help="Split into chunks of N rows.")
+def cmd_split(input_file: str, output_dir: str, column: str | None, chunk_size: int | None) -> None:
+    """Split INPUT_FILE into multiple CSV files in OUTPUT_DIR."""
+    if column is None and chunk_size is None:
+        raise click.UsageError("Provide --column or --chunk-size.")
+    result = splitter.split_csv(input_file, output_dir, column=column, chunk_size=chunk_size)
+    click.echo(splitter.summary(result))
+    sys.exit(0 if not result.errors else 1)
