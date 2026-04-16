@@ -46,7 +46,19 @@ def validate_csv(
     expected_columns: Optional[int] = None,
     required_headers: Optional[List[str]] = None,
 ) -> ValidationResult:
-    """Validate a CSV file for structural integrity."""
+    """Validate a CSV file for structural integrity.
+
+    Args:
+        filepath: Path to the CSV file to validate.
+        delimiter: Field delimiter character (default: comma).
+        expected_columns: If provided, validates that the header row contains
+            exactly this many columns.
+        required_headers: If provided, validates that all listed header names
+            are present in the file.
+
+    Returns:
+        A :class:`ValidationResult` describing any errors or warnings found.
+    """
     result = ValidationResult(filepath=filepath)
     path = Path(filepath)
 
