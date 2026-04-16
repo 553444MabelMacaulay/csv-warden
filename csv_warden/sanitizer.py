@@ -50,8 +50,28 @@ def sanitize_csv(
     drop_empty_rows: bool = True,
     extra_transforms: Optional[Dict[str, Callable[[str], str]]] = None,
 ) -> SanitizeResult:
-    """Read *source*, apply sanitization rules, write to *dest* (or overwrite source)."""
+    """Read *source*, apply sanitization rules, write to *dest* (or overwrite source).
+
+    Args:
+        source: Path to the input CSV file.
+        dest: Path for the output CSV file. Defaults to overwriting *source*.
+        strip_whitespace: Strip leading/trailing whitespace from every cell.
+        normalize_empty: Normalize whitespace-only cells to empty strings.
+        drop_empty_rows: Drop rows where every cell is empty after transforms.
+        extra_transforms: Optional per-column transform functions keyed by
+            column header name.
+
+    Returns:
+        A :class:`SanitizeResult` describing what was changed.
+
+    Raises:
+        FileNotFoundError: If *source* does not exist.
+        ValueError: If *source* is not a valid CSV file.
+    """
     source = Path(source)
+    if not source.exists():
+        raise FileNotFoundError(f"Source file not found: {source}")
+
     dest = Path(dest) if dest else source
     extra_transforms = extra_transforms or {}
 
@@ -94,9 +114,8 @@ def sanitize_csv(
             output_rows.append(new_row)
             result.rows_written += 1
 
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator="\n")
-    writer.writerows(output_rows)
-    dest.write_text(buf.getvalue(), encoding="utf-8")
+    with dest.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerows(output_rows)
 
     return result
