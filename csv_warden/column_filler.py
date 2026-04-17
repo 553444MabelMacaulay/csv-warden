@@ -31,6 +31,11 @@ def summary(result: FillResult) -> str:
     return "\n".join(lines)
 
 
+def _is_missing(value: Optional[str]) -> bool:
+    """Return True if a cell value should be considered missing."""
+    return value is None or value.strip() == ""
+
+
 def fill_csv(
     input_path: str,
     output_path: str,
@@ -64,7 +69,7 @@ def fill_csv(
         new_row = dict(row)
         for col in fill_values if strategy != "empty" else fieldnames:
             val = new_row.get(col, "")
-            if val is None or val.strip() == "":
+            if _is_missing(val):
                 if strategy == "forward":
                     new_val = prev.get(col, "")
                 elif strategy == "empty":
