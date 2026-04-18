@@ -83,3 +83,13 @@ def test_summary_output(tmp_csv, tmp_path):
     s = summary(result)
     assert "col" in s
     assert "|" in s
+
+
+def test_split_no_separator_match(tmp_csv, tmp_path):
+    """When the delimiter is not found in a value, the whole value goes into column_0."""
+    src = tmp_csv([{"tag": "python"}], ["tag"])
+    out = str(tmp_path / "out.csv")
+    result = split_column(src, out, "tag", ",")
+    assert not result.errors
+    rows = _read(out)
+    assert rows[0]["tag_0"] == "python"
