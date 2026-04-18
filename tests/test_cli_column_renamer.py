@@ -54,3 +54,18 @@ def test_suffix_only(simple_csv, tmp_path):
     with open(out, newline="") as f:
         fields = csv.DictReader(f).fieldnames
     assert "name_raw" in fields
+
+
+def test_prefix_and_suffix_combined(simple_csv, tmp_path):
+    """Both prefix and suffix should be applied together to each column name."""
+    out = str(tmp_path / "out.csv")
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["prefix-suffix", simple_csv, out, "--prefix", "pre_", "--suffix", "_suf"],
+    )
+    assert result.exit_code == 0
+    with open(out, newline="") as f:
+        fields = csv.DictReader(f).fieldnames
+    assert "pre_name_suf" in fields
+    assert "pre_score_suf" in fields
