@@ -24,7 +24,19 @@ def register(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[ty
 
 
 def cmd_infer_types(args: argparse.Namespace) -> None:
-    result = infer_types(args.input, sample_size=args.sample)
+    """Run the infer-types command.
+
+    Exits with code 1 if any type inference errors are encountered,
+    or with code 2 if the input file cannot be read.
+    """
+    try:
+        result = infer_types(args.input, sample_size=args.sample)
+    except FileNotFoundError:
+        print(f"error: file not found: {args.input}", file=sys.stderr)
+        sys.exit(2)
+    except OSError as exc:
+        print(f"error: could not read file: {exc}", file=sys.stderr)
+        sys.exit(2)
     print(summary(result))
     if result.errors:
         sys.exit(1)
