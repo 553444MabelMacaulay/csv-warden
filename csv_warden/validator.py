@@ -92,15 +92,15 @@ def validate_csv(
                 )
 
             for line_num, row in enumerate(reader, start=2):
-                result.row_count += 1
                 if len(row) != result.column_count:
-                    result.add_warning(
-                        f"Row {line_num} has {len(row)} fields; expected {result.column_count}."
+                    result.add_error(
+                        f"Row {line_num} has {len(row)} columns, expected {result.column_count}."
                     )
+                result.row_count += 1
 
     except UnicodeDecodeError as exc:
-        result.add_error(f"Encoding error: {exc}")
+        result.add_error(f"File encoding error: {exc}")
     except csv.Error as exc:
-        result.add_error(f"CSV parse error: {exc}")
+        result.add_error(f"CSV parsing error on line {reader.line_num}: {exc}")
 
     return result
