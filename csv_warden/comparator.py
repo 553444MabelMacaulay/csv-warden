@@ -98,10 +98,10 @@ def compare_csv(
             return result
 
     if key_column:
-        key_idx_a = headers_a.index(key_column)
-        key_idx_b = headers_b.index(key_column)
-        set_a = {row[key_idx_a] for row in rows_a}
-        set_b = {row[key_idx_b] for row in rows_b}
+        idx_a = headers_a.index(key_column)
+        idx_b = headers_b.index(key_column)
+        set_a = {row[idx_a] for row in rows_a}
+        set_b = {row[idx_b] for row in rows_b}
     else:
         set_a = set(rows_a)
         set_b = set(rows_b)
