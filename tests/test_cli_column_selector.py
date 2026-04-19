@@ -45,3 +45,15 @@ def test_select_all_columns_missing_exits_one(simple_csv, tmp_path):
     runner = CliRunner()
     result = runner.invoke(main, ["select", str(simple_csv), str(out), "--columns", "zzz"])
     assert result.exit_code == 1
+
+
+def test_select_multiple_columns_preserves_row_count(simple_csv, tmp_path):
+    """Selecting multiple valid columns should preserve all rows from the source."""
+    out = tmp_path / "out.csv"
+    runner = CliRunner()
+    runner.invoke(main, ["select", str(simple_csv), str(out), "--columns", "name,city"])
+    with open(out, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert len(rows) == 2
+    assert all("name" in r and "city" in r and "age" not in r for r in rows)
